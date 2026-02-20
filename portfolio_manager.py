@@ -20,6 +20,7 @@ Commands you can use:
 import json
 import os
 import re
+import subprocess
 import requests
 from pathlib import Path
 
@@ -40,6 +41,58 @@ def save_portfolio(content):
     with open(CONTENT_FILE, 'w', encoding='utf-8') as f:
         json.dump(content, f, indent=2, ensure_ascii=False)
     print("\n✅ Portfolio updated and saved!")
+
+
+def push_to_github(message="Update portfolio via Ollama"):
+    """Push changes to GitHub."""
+    consulting_dir = CONTENT_FILE.parent
+    
+    try:
+        # Check if there are changes to commit
+        result = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=consulting_dir,
+            capture_output=True,
+            text=True
+        )
+        
+        if not result.stdout.strip():
+            print("\n📝 No changes to push.")
+            return True
+        
+        # Stage changes
+        subprocess.run(
+            ["git", "add", "."],
+            cwd=consulting_dir,
+            check=True
+        )
+        
+        # Commit
+        subprocess.run(
+            ["git", "commit", "-m", message],
+            cwd=consulting_dir,
+            check=True,
+            capture_output=True
+        )
+        
+        # Push
+        print("\n📤 Pushing to GitHub...")
+        subprocess.run(
+            ["git", "push"],
+            cwd=consulting_dir,
+            check=True
+        )
+        
+        print("✅ Changes pushed to GitHub!")
+        print("🌐 Site will update at: https://ss889.github.io/consulting/")
+        return True
+        
+    except subprocess.CalledProcessError as e:
+        print(f"\n❌ Git error: {e}")
+        return False
+    except FileNotFoundError:
+        print("\n❌ Git not found. Please install Git.")
+        return False
 
 
 def chat_with_ollama(prompt, system_context=""):
@@ -380,8 +433,10 @@ def main():
     print("  • 'add service for ...' - Add a new service")
     print("  • 'remove project [name]' - Remove a project")
     print("  • 'update email to ...' - Change contact email")
-    print("  • 'quit' or 'exit' - Save and exit")
+    print("  • 'push' - Push changes to GitHub")
+    print("  • 'quit' or 'exit' - Exit")
     print("-"*60)
+    print("💡 Changes auto-push to GitHub after each edit!")
     
     # Check if Ollama is running
     try:
@@ -415,16 +470,17 @@ def main():
         if user_input.lower() in ['quit', 'exit', 'q']:
             break
         
+        # Handle push command
+        if user_input.lower() in ['push', 'deploy', 'publish']:
+            push_to_github()
+            continue
+        
         content, changed = process_command(user_input, content)
         if changed:
             save_portfolio(content)
             changes_made = True
-    
-    # Final save
-    if changes_made:
-        print("\n✅ All changes saved to content.json")
-        print("📤 To update GitHub, run:")
-        print("   cd consulting && git add . && git commit -m 'Update portfolio' && git push")
+            # Auto-push after each change
+            push_to_github()
     
     print("\n👋 Goodbye!")
 
